@@ -93,3 +93,5 @@ Handles messages sent via the contact form.
 ---
 
 ## 🗂️ Database Schema
+
+![Database Schema](dbScheme.png)    
