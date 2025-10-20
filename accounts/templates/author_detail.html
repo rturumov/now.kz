@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        a:hover {
+            color: #1e40af;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #1e3a8a;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        h2 {
+            font-size: 1.25rem;
+            color: #1e40af;
+            margin-top: 30px;
+            margin-bottom: 10px;
+        }
+
+        p {
+            color: #374151;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        img {
+            display: block;
+            margin: 20px auto;
+            border-radius: 50%;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            width: 150px;
+            height: 150px;
+            object-fit: cover;
+        }
+
+        hr {
+            border: none;
+            border-top: 1px solid #e5e7eb;
+            margin: 24px 0;
+        }
+
+        .empty {
+            text-align: center;
+            color: #6b7280;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ title }}</h1>
+        <a href="{% url 'accounts:author_list' %}">← К списку авторов</a>
+
+        <h2>Данные пользователя: {{ user_data.username }}</h2>
+
+        {% if user_data.avatar %}
+            <img src="{{ user_data.avatar.url }}" alt="Аватар">
+        {% endif %}
+
+        <p><strong>Email:</strong> {{ user_data.email }}</p>
+        <p><strong>Биография:</strong> {{ user_data.bio|default:"Нет био" }}</p>
+
+        {% if author_data %}
+            <hr>
+            <h2>Профиль автора</h2>
+            <p><strong>Дополнительное описание:</strong> {{ author_data.description|default:"Автор не добавил дополнительное описание." }}</p>
+        {% else %}
+            <p class="empty">Дополнительный профиль автора не заполнен.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

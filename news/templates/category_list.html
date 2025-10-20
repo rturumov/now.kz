@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #1e3a8a;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        a:hover {
+            color: #1e40af;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin-top: 20px;
+        }
+
+        li {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        li:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        p {
+            color: #374151;
+            line-height: 1.6;
+        }
+
+        .empty {
+            text-align: center;
+            color: #6b7280;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ title }}</h1>
+        <p><a href="{% url 'news:news_list' %}">← К списку всех новостей</a></p>
+
+        {% if categories %}
+            <ul>
+            {% for category in categories %}
+                <li>
+                    <a href="{% url 'news:news_by_category' category_slug=category.slug %}">
+                        {{ category.name }} ({{ category.published_news_count }} новостей)
+                    </a>
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty">В системе не создано ни одной категории.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

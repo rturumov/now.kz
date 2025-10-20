@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        a:hover {
+            color: #1e40af;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #1e3a8a;
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        li {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            margin-bottom: 12px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        li:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+        }
+
+        p {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .empty {
+            text-align: center;
+            color: #6b7280;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="{% url 'home' %}">← На главную</a>
+
+        <h1>{{ title }}</h1>
+
+        {% if authors %}
+            <ul>
+            {% for author in authors %}
+                <li>
+                    <a href="{% url 'accounts:author_detail' username=author.user.username %}">
+                        {{ author.user.username }}
+                    </a>
+                    — {{ author.description|truncatechars:50|default:"Нет описания" }}
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p class="empty">Нет зарегистрированных авторов.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
