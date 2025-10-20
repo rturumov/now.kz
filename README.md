@@ -92,6 +92,39 @@ Handles messages sent via the contact form.
 
 ---
 
-## 🗂️ Database Schema
+## Database Schema
 
-![Database Schema](dbScheme.png)    
+![Database Schema](dbScheme.png) 
+
+## Tests
+
+### 1. accounts  
+
+```
+python manage.py seed_users
+python manage.py seed_authors
+```
+
+---
+
+### 2. news  
+
+```
+python manage.py seed_categories
+python manage.py seed_news
+```
+
+---
+
+### 3. comments  
+```
+python manage.py seed_comments
+```
+
+---
+
+### 4. contacts  
+
+```
+python manage.py seed_contacts
+```
