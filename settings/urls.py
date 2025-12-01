@@ -11,6 +11,7 @@ urlpatterns = [
 
     path('news/', include('apps.news.urls', namespace='news')),
     path('accounts/', include('apps.accounts.urls', namespace='accounts')),
+    path('comments/', include('apps.comments.urls', namespace='comments')),
     path('admin/', admin.site.urls),
 ]
 
