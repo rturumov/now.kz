@@ -83,7 +83,7 @@
         <p>
             <strong>Категория:</strong>
             {% if news.category %}
-                <a href="{% url 'news:news_by_category' category_slug=news.category.slug %}">{{ news.category.name }}</a>
+                <a href="{% url 'news:news_by_category' category_id=news.category.id %}">{{ news.category.name }}</a>
             {% else %}
                 (Не указана)
             {% endif %}

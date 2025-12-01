@@ -111,7 +111,7 @@
             <ul>
             {% for item in news %}
                 <li>
-                    <h2><a href="{% url 'news:news_detail' slug=item.slug %}">{{ item.title }}</a></h2>
+                    <h2><a href="{% url 'news:news_detail' news_id=item.id %}">{{ item.title }}</a></h2>
                     <p>Опубликовано: {{ item.published_at|date:"d.m.Y H:i" }}</p>
                     <hr>
                 </li>

@@ -109,12 +109,12 @@
             <ul>
             {% for item in news %}
                 <li>
-                    <h2><a href="{% url 'news:news_detail' slug=item.slug %}">{{ item.title }}</a></h2>
+                    <h2><a href="{% url 'news:news_detail' news_id=item.id %}">{{ item.title }}</a></h2>
 
                     <p>
                         <strong>Категория:</strong>
                         {% if item.category %}
-                            <a href="{% url 'news:news_by_category' category_slug=item.category.slug %}">{{ item.category.name }}</a>
+                            <a href="{% url 'news:news_by_category' category_id=item.category.id %}">{{ item.category.name }}</a>
                         {% else %}
                             (Нет категории)
                         {% endif %}

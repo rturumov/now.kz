@@ -7,7 +7,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'slug', 'published_news_count']
+        fields = ['id', 'name', 'published_news_count']
 
 
 class NewsSerializer(serializers.ModelSerializer):
@@ -15,4 +15,4 @@ class NewsSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = News
-        fields = ['id', 'title', 'slug', 'content', 'category', 'author', 'published_at', 'is_published']
+        fields = ['id', 'title', 'content', 'category', 'author', 'published_at', 'is_published']

@@ -20,8 +20,8 @@ def news_list(request):
     return render(request, 'news_list.html', context)
 
 
-def news_detail(request, slug):
-    news_item = get_object_or_404(News, slug=slug, is_published=True)
+def news_detail(request, news_id):
+    news_item = get_object_or_404(News, id=news_id, is_published=True)
 
     if request.headers.get('Accept') == 'application/json':
         serializer = NewsSerializer(news_item)
@@ -34,8 +34,8 @@ def news_detail(request, slug):
     return render(request, 'news_detail.html', context)
 
 
-def news_by_category(request, category_slug):
-    category = get_object_or_404(Category, slug=category_slug)
+def news_by_category(request, category_id):
+    category = get_object_or_404(Category, id=category_id)
     news_items = News.objects.filter(category=category, is_published=True).order_by('-published_at')
 
     if request.headers.get('Accept') == 'application/json':

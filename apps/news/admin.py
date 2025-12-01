@@ -3,8 +3,7 @@ from .models import News, Category
 
 @admin.register(Category)
 class CategoryAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'slug', 'is_deleted', 'created_at', 'updated_at')
-    prepopulated_fields = {'slug': ('name',)}
+    list_display = ('id', 'name', 'is_deleted', 'created_at', 'updated_at')
     search_fields = ('name',)
 
 
@@ -14,4 +13,3 @@ class NewsAdmin(admin.ModelAdmin):
     list_filter = ('is_published', 'category', 'author')
     search_fields = ('title', 'content')
     readonly_fields = ('created_at', 'updated_at', 'published_at')
-    prepopulated_fields = {'slug': ('title',)}
