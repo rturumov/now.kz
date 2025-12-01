@@ -1,6 +1,6 @@
 from django.contrib.auth.models import AbstractUser
 from django.db import models
-from abstracts.models import AbstractBaseModel
+from apps.abstracts.models import AbstractBaseModel
 
 class User(AbstractUser, AbstractBaseModel):
     email = models.EmailField(unique=True)

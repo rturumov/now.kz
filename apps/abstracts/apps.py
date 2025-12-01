@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class NewsConfig(AppConfig):
+class AbstractsConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'news'
+    name = 'apps.abstracts'

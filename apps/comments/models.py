@@ -1,7 +1,7 @@
 from django.db import models
-from abstracts.models import AbstractBaseModel
-from accounts.models import User
-from news.models import News
+from apps.abstracts.models import AbstractBaseModel
+from apps.accounts.models import User
+from apps.news.models import News
 
 class Comment(AbstractBaseModel):
     news = models.ForeignKey(News, on_delete=models.CASCADE, related_name='comments')

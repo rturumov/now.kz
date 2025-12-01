@@ -45,11 +45,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'news',
-    'accounts',
-    'comments',
-    'contacts',
-    'abstracts',
+    'apps.news',
+    'apps.accounts',
+    'apps.comments',
+    'apps.abstracts',
 ]
 
 AUTH_USER_MODEL = 'accounts.User'
@@ -64,7 +63,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'now_kz.urls'
+ROOT_URLCONF = 'settings.urls'
 
 TEMPLATES = [
     {
@@ -81,7 +80,7 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'now_kz.wsgi.application'
+WSGI_APPLICATION = 'settings.wsgi.application'
 
 
 # Database

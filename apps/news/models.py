@@ -1,6 +1,6 @@
 from django.db import models
-from abstracts.models import AbstractBaseModel
-from accounts.models import Author
+from apps.abstracts.models import AbstractBaseModel
+from apps.accounts.models import Author
 
 class Category(AbstractBaseModel):
     name = models.CharField(max_length=100, unique=True)
