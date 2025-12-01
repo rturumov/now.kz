@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from faker import Faker
-from accounts.models import User, Author
+from apps.accounts.models import User, Author
 
 class Command(BaseCommand):
     help = "Creates Author profiles for all users without one."

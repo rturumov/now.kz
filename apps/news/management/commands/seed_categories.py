@@ -1,6 +1,6 @@
 from django.core.management.base import BaseCommand
 from faker import Faker
-from news.models import Category
+from apps.news.models import Category
 
 class Command(BaseCommand):
     help = "Creates 20 fake categories."

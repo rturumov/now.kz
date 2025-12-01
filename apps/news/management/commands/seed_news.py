@@ -1,8 +1,8 @@
 from django.core.management.base import BaseCommand
 from faker import Faker
 import random
-from news.models import News, Category
-from accounts.models import Author
+from apps.news.models import News, Category
+from apps.accounts.models import Author
 
 class Command(BaseCommand):
     help = "Creates 20 fake news articles."

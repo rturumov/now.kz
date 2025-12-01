@@ -1,9 +1,9 @@
 from django.core.management.base import BaseCommand
 from faker import Faker
 import random
-from comments.models import Comment
-from accounts.models import User
-from news.models import News
+from apps.comments.models import Comment
+from apps.accounts.models import User
+from apps.news.models import News
 
 class Command(BaseCommand):
     help = "Creates 30 fake comments."
