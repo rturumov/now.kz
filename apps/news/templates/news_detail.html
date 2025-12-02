@@ -107,7 +107,10 @@
     display: block;
     margin-bottom: 4px;
 }
-
+.headerButton {
+    display: flex;
+    justify-content: space-between;
+}
 .reply {
     margin-left: 30px;
     margin-top: 10px;
@@ -163,6 +166,20 @@ button, .btn-small {
     border: 1px solid #2563eb;
 }
 
+.delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
     </style>
 </head>
 <body>
@@ -207,7 +224,12 @@ button, .btn-small {
                     {% for comment in comments %}
                         {% if not comment.parent %}
                             <div class="comment" id="comment-{{ comment.id }}">
-                                <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span><br>
+                                    <div class="headerButton">
+                                        <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span><br>
+                                        {% if comment.user == request.user %}
+                                            <button class="delete-btn" onclick="deleteComment({{ comment.id }})">Удалить</button>
+                                        {% endif %}
+                                    </div>
                                 <b>{{ comment.user.username }}</b>: {{ comment.text }}<br>
                                 <button class="btn-small" onclick="showReplyForm({{ comment.id }})">Ответить</button>
 
@@ -217,9 +239,14 @@ button, .btn-small {
                                 </div>
 
                                 <!-- Вложенные ответы -->
-                                {% for reply in comment.replies.all %}
-                                    <div class="reply">
+                                {% for reply in comment.active_replies %}
+                                    <div class="reply" id="comment-{{ reply.id }}">
+                                    <div class="headerButton">
                                         <span class="comment-date">{{ reply.created_at|date:"d.m.Y H:i" }}</span><br>
+                                        {% if reply.user == request.user %}
+                                            <button class="delete-btn" onclick="deleteComment({{ reply.id }})">Удалить</button>
+                                        {% endif %}
+                                    </div>
                                         <b>{{ reply.user.username }}</b>: {{ reply.text }}<br>
                                         <button class="btn-small" onclick="showReplyForm({{ reply.id }})">Ответить</button>
 
@@ -346,6 +373,31 @@ button, .btn-small {
         }
 
         loadComments();
-    </script>
+
+        async function deleteComment(commentId) {
+        if (!confirm("Вы уверены, что хотите удалить этот комментарий?")) return;
+
+        try {
+            const response = await fetch(`/comments/api/comments/${commentId}/`, {
+                method: "DELETE",
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                }
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(JSON.stringify(errorData));
+            }
+
+            // Удаляем элемент из DOM
+            const el = document.getElementById(`comment-${commentId}`);
+            if (el) el.remove();
+
+        } catch (error) {
+            console.error("Ошибка при удалении комментария:", error);
+        }
+    }
+</script>
 </body>
 </html>

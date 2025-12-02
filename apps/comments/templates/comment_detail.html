@@ -163,34 +163,51 @@
         .btn-small:hover {
             background: #374151;
         }
+.delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
 
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+    <a href="{% url 'home' %}">← На главную</a>
         <h1>{{ title }}</h1>
 
         {% if comment %}
-            <div class="comment">
+            <div class="comment" id="comment-{{ comment.id }}">
                 <div class="comment-header">
-                    <span class="comment-author">{{ comment.user.username }}</span>
                     <span class="comment-date">({{ comment.created_at|date:"d.m.Y H:i" }})</span>
+
                 </div>
-                <p class="comment-text">{{ comment.text|linebreaksbr }}</p>
+                <b>{{ comment.user.username }}</b>: {{ comment.text }}<br>
                 </div>
         {% endif %}
 
         <h2>Ответы</h2>
 
         {% if replies %}
-            <div class="reply">
+            <div class="reply" id="comment-{{ reply.id }}">
                 {% for reply in replies %}
-                    <div class="comment">
+                    <div class="comment" id="comment-{{ reply.id }}">
                         <div class="comment-header">
-                            <span class="comment-author">{{ reply.user.username }}</span>
                             <span class="comment-date">({{ reply.created_at|date:"d.m.Y H:i" }})</span>
+                            {% if reply.user == request.user %}
+                                <button class="delete-btn" onclick="deleteComment({{ reply.id }})">Удалить</button>
+                            {% endif %}
                         </div>
-                        <p class="comment-text">{{ reply.text|linebreaksbr }}</p>
+
+                        <b>{{ reply.user.username }}</b>: {{ reply.text }}<br>
                     </div>
                 {% endfor %}
             </div>
@@ -198,5 +215,47 @@
             <p>Ответов пока нет.</p>
         {% endif %}
     </div>
+    <script>
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+            if (cookie.startsWith(name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+
+async function deleteComment(commentId) {
+    if (!confirm("Вы уверены, что хотите удалить этот комментарий?")) return;
+
+    try {
+        const response = await fetch(`/comments/api/comments/${commentId}/`, {
+            method: "DELETE",
+            headers: {
+                "X-CSRFToken": getCookie("csrftoken"),
+            }
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(JSON.stringify(errorData));
+        }
+
+        // Удаляем элемент из DOM
+        const el = document.getElementById(`comment-${commentId}`);
+        if (el) el.remove();
+
+    } catch (error) {
+        console.error("Ошибка при удалении комментария:", error);
+    }
+}
+</script>
+
 </body>
 </html>

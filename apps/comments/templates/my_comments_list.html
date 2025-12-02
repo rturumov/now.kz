@@ -53,7 +53,8 @@
             background: #ffffff;
             border-radius: 10px;
             border: 1px solid #e5e7eb;
-            list-style: none; /* Убираем маркер списка */
+            list-style: none;
+            position: relative;
         }
 
         .comment-header {
@@ -91,17 +92,31 @@
             display: block;
         }
 
+        .delete-btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 8px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        .delete-btn:hover {
+            background: #b91c1c;
+        }
     </style>
 </head>
 <body>
     <div class="container">
+        <a href="{% url 'home' %}">← На главную</a>
         <h1>{{ title }}</h1>
 
         {% if comments %}
             <ul id="comments-list">
             {% for comment in comments %}
-                <li class="comment-item">
-
+                <li class="comment-item" id="comment-{{ comment.id }}">
                     <div class="comment-header">
                         <span class="comment-author">
                             {% if comment.parent %}
@@ -115,16 +130,16 @@
                                 <a href="{% url 'comments:comment_detail' comment_id=comment.parent.id %}">К оригиналу</a>
                             {% endif %}
                             <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span>
-                            <br>
+                            {% if comment.user == request.user or request.user.is_staff %}
+                                <button class="delete-btn" onclick="deleteComment({{ comment.id }})">Удалить</button>
+                            {% endif %}
                         </div>
                     </div>
 
                     <p class="comment-text">{{ comment.text|linebreaksbr }}</p>
-
                     <a href="/news/{{ comment.news.id }}/" class="news-link">
                         К новости: {{ comment.news.title }}
                     </a>
-
                 </li>
             {% endfor %}
             </ul>
@@ -132,5 +147,45 @@
             <p style="text-align: center; color: #6b7280;">Вы еще не оставили ни одного комментария.</p>
         {% endif %}
     </div>
+
+    <script>
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie) {
+                const cookies = document.cookie.split(';');
+                for (let c of cookies) {
+                    c = c.trim();
+                    if (c.startsWith(name + '=')) {
+                        cookieValue = c.substring(name.length + 1);
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        async function deleteComment(commentId) {
+            if (!confirm('Вы уверены, что хотите удалить этот комментарий?')) return;
+
+            try {
+                const response = await fetch(`/comments/api/comments/${commentId}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': getCookie('csrftoken'),
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (response.status === 204) {
+                    // Удаляем элемент из DOM
+                    document.getElementById(`comment-${commentId}`).remove();
+                } else {
+                    const data = await response.json();
+                    alert('Ошибка: ' + JSON.stringify(data));
+                }
+            } catch (error) {
+                console.error('Ошибка при удалении комментария:', error);
+            }
+        }
+    </script>
 </body>
 </html>

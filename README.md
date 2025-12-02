@@ -128,3 +128,175 @@ python manage.py seed_comments
 ```
 python manage.py seed_contacts
 ```
+
+------------------------------------------------------------------------
+
+# Authentication (JWT)
+
+## POST /api/token/
+
+Obtain access & refresh tokens.
+
+### Request
+
+``` json
+{
+  "username": "user",
+  "password": "secret"
+}
+```
+
+### Response
+
+``` json
+{
+  "access": "jwt_access",
+  "refresh": "jwt_refresh"
+}
+```
+
+------------------------------------------------------------------------
+
+## POST /api/token/refresh/
+
+Refresh access token.
+
+------------------------------------------------------------------------
+
+# News API
+
+### GET /news/
+
+HTML --- list of news.
+
+### GET /news/categories/
+
+HTML --- list of categories.
+
+### GET /news/category/{category_id}/
+
+HTML --- news by category.
+
+### GET /news/{news_id}/
+
+HTML --- news details.
+
+------------------------------------------------------------------------
+
+## REST: /api/news/
+
+### GET /api/news/
+
+List all news (JSON).
+
+### GET /api/news/{id}/
+
+Retrieve news.
+
+### POST /api/news/
+
+Create news (auth required).
+
+### PUT /api/news/{id}/
+
+Update news.
+
+### DELETE /api/news/{id}/
+
+Delete news.
+
+------------------------------------------------------------------------
+
+# Categories API
+
+Base: `/api/categories/`
+
+### GET /api/categories/
+
+List categories.
+
+### GET /api/categories/{id}/
+
+Retrieve category.
+
+------------------------------------------------------------------------
+
+# Comments API
+
+HTML Endpoints:
+
+-   GET /comments/news/{news_id}/comments/
+-   GET /comments/comments/{comment_id}/
+-   GET /comments/my-comments/
+
+
+------------------------------------------------------------------------
+
+## REST: /api/comments/
+
+### POST /comments/api/comments/{comment_id}/reply/
+
+ Reply to a Comment
+
+Description:
+Creates a nested reply to an existing comment.
+The reply will automatically inherit:
+
+news — from the parent comment
+
+parent — set to the comment being replied to
+
+user — set to the authenticated user
+
+
+### GET /api/comments/
+
+List comments.
+
+Query: - news_id\
+- parent_only=true
+
+### POST /api/comments/
+
+Create comment.
+
+``` json
+{
+  "news": 5,
+  "text": "Great article!",
+  "parent": null
+}
+```
+
+### PUT /api/comments/{id}/
+
+Update comment (owner only).
+
+### DELETE /api/comments/{id}/
+
+Delete comment.
+
+------------------------------------------------------------------------
+
+# Accounts API
+
+HTML:
+
+-   GET /accounts/authors/
+-   GET /accounts/author/{username}/
+
+REST:
+
+## Users
+
+-   GET /api/users/
+-   GET /api/users/{id}/
+-   POST /api/users/
+
+## Authors
+
+-   GET /api/authors/
+-   GET /api/authors/{id}/
+-   POST /api/authors/
+
+------------------------------------------------------------------------

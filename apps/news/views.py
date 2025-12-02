@@ -127,7 +127,10 @@ def news_list(request):
 
 def news_detail(request, news_id):
     news_item = get_object_or_404(News, id=news_id, is_published=True)
-    comments = Comment.objects.filter(news=news_item).order_by('created_at')  # все комментарии к новости
+    comments = Comment.objects.filter(news=news_item, is_deleted=False).order_by('created_at')  # все комментарии к новости
+
+    for comment in comments:
+        comment.active_replies = comment.replies.filter(is_deleted=False)
 
     if request.headers.get('Accept') == 'application/json':
         serializer = NewsSerializer(news_item)
