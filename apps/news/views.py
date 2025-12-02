@@ -45,13 +45,10 @@ class NewsViewSet(viewsets.ModelViewSet):
     ordering = ['-published_at']
 
     def get_queryset(self):
+        qs = News.objects.filter(is_published=True).select_related('author__user') #оптимизация join
         if self.request.user.is_authenticated and hasattr(self.request.user, 'author_profile'):
-            return News.objects.filter(
-                Q(is_published=True) | 
-                Q(author__user=self.request.user)
-            ).order_by('-published_at')
-        
-        return News.objects.filter(is_published=True).order_by('-published_at')
+            qs = qs | News.objects.filter(author__user=self.request.user).select_related('author__user')
+        return qs.order_by('-published_at')
 
     def perform_create(self, serializer):
         if hasattr(self.request.user, 'author_profile'):
@@ -112,7 +109,7 @@ class NewsViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
 
 def news_list(request):
-    all_news = News.objects.filter(is_published=True).order_by('-published_at')
+    all_news = News.objects.filter(is_published=True).select_related('author__user').order_by('-published_at') #оптимизация join
 
     if request.headers.get('Accept') == 'application/json':
         serializer = NewsSerializer(all_news, many=True)
@@ -127,7 +124,7 @@ def news_list(request):
 
 def news_detail(request, news_id):
     news_item = get_object_or_404(News, id=news_id, is_published=True)
-    comments = Comment.objects.filter(news=news_item, is_deleted=False).order_by('created_at')  # все комментарии к новости
+    comments = Comment.objects.filter(news=news_item, is_deleted=False).select_related('user').prefetch_related('replies__user').order_by('created_at') #оптимизация join
 
     for comment in comments:
         comment.active_replies = comment.replies.filter(is_deleted=False)

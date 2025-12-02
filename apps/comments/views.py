@@ -28,7 +28,6 @@ class CommentViewSet(viewsets.ModelViewSet):
         if news_id:
             queryset = queryset.filter(news_id=news_id)
 
-        # Фильтруем parent_only только для list-представлений
         if self.action in ['list', 'news_comments', 'my_comments']:
             parent_only = self.request.query_params.get('parent_only', 'true').lower() == 'true'
             if parent_only:
@@ -38,7 +37,7 @@ class CommentViewSet(viewsets.ModelViewSet):
         if user_id:
             queryset = queryset.filter(user_id=user_id)
 
-        return queryset.select_related('user', 'news', 'parent')
+        return queryset.select_related('user', 'news', 'parent').prefetch_related('replies__user') #оптимизация join
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
@@ -46,7 +45,7 @@ class CommentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def replies(self, request, pk=None):
         comment = self.get_object()
-        replies = comment.replies.filter(is_deleted=False)
+        replies = comment.replies.filter(is_deleted=False).select_related('user', 'news', 'parent') #оптимизация join
 
         page = self.paginate_queryset(replies)
         if page is not None:
@@ -98,7 +97,9 @@ class CommentViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_404_NOT_FOUND
             )
         
-        comments = Comment.objects.filter(news=news, is_deleted=False, parent__isnull=True)
+        comments = Comment.objects.filter(news=news, is_deleted=False, parent__isnull=True)\
+                          .select_related('user', 'news')\
+                          .prefetch_related('replies__user') #оптимизация join
         
         page = self.paginate_queryset(comments)
         if page is not None:
@@ -110,7 +111,9 @@ class CommentViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=['get'])
     def my_comments(self, request):
-        comments = Comment.objects.filter(user=request.user, is_deleted=False)
+        comments = Comment.objects.filter(user=request.user, is_deleted=False)\
+                          .select_related('news', 'user')\
+                          .prefetch_related('replies__user') #оптимизация join
         
         page = self.paginate_queryset(comments)
         if page is not None:
@@ -135,7 +138,9 @@ def my_comments_list(request):
 
 def comment_list(request, news_id):
     news_item = get_object_or_404(News, id=news_id)
-    comments = Comment.objects.filter(news=news_item, is_deleted=False, parent__isnull=True)
+    comments = Comment.objects.filter(news=news_item, is_deleted=False, parent__isnull=True)\
+                          .select_related('user', 'news')\
+                          .prefetch_related('replies__user') #оптимизация join
 
     if request.headers.get('Accept') == 'application/json':
         serializer = CommentSerializer(comments, many=True)

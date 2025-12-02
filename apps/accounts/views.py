@@ -29,8 +29,8 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         if user.is_staff:
-            return User.objects.all()
-        return User.objects.filter(id=user.id)
+            return User.objects.all().select_related('author_profile')
+        return User.objects.filter(id=user.id).select_related('author_profile') #оптимизация join
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -93,11 +93,10 @@ class AuthorViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'])
     def news(self, request, pk=None):
         author = self.get_object()
-        from apps.news.models import News  # Импортируем здесь, чтобы избежать циклического импорта
-        news_items = News.objects.filter(
-            author=author,
-            is_published=True
-        ).order_by('-published_at')
+        from apps.news.models import News 
+        news_items = News.objects.filter(author=author, is_published=True)\
+                         .select_related('author__user')\
+                         .prefetch_related('comments') #оптимизация join
         
         from apps.news.serializers import NewsSerializer
         page = self.paginate_queryset(news_items)
@@ -127,7 +126,9 @@ class AuthorViewSet(viewsets.ModelViewSet):
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 def author_list(request):
-    all_authors = Author.objects.filter(user__is_active=True).order_by('user__username')
+    all_authors = Author.objects.filter(user__is_active=True)\
+                            .select_related('user')\
+                            .order_by('user__username') #оптимизация join
 
     if request.headers.get('Accept') == 'application/json':
         serializer = AuthorSerializer(all_authors, many=True)
@@ -141,7 +142,7 @@ def author_list(request):
 
 
 def author_detail(request, username):
-    user_profile = get_object_or_404(User, username=username, is_active=True)
+    user_profile = get_object_or_404(User.objects.select_related('author_profile'), username=username, is_active=True) #оптимизация join
 
     try:
         author_profile = user_profile.author_profile
