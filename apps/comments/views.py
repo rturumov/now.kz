@@ -1,3 +1,4 @@
+from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from rest_framework import viewsets, permissions, status, filters
 from rest_framework.decorators import action
@@ -6,12 +7,15 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import JsonResponse
 from .models import Comment
 from apps.news.models import News
-from .serializers import CommentSerializer
 from .permissions import IsCommentOwnerOrReadOnly
+from .serializers import CommentSerializer
 
 class CommentViewSet(viewsets.ModelViewSet):
+    def get_permissions(self):
+        if self.action in ['reply', 'create']:
+            return [permissions.IsAuthenticated()]
+        return [permissions.IsAuthenticatedOrReadOnly(), IsCommentOwnerOrReadOnly()]
     serializer_class = CommentSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsCommentOwnerOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['text', 'user__username']
     ordering_fields = ['created_at', 'updated_at']
@@ -53,16 +57,16 @@ class CommentViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['post'])
     def reply(self, request, pk=None):
         comment = self.get_object()
-        
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         reply = serializer.save(
             user=request.user,
             news=comment.news,
             parent=comment
         )
-        
+
         return Response(
             self.get_serializer(reply).data,
             status=status.HTTP_201_CREATED
@@ -106,6 +110,19 @@ class CommentViewSet(viewsets.ModelViewSet):
             
         serializer = self.get_serializer(comments, many=True)
         return Response(serializer.data)
+
+
+@login_required
+def my_comments_list(request):
+
+    comments = Comment.objects.filter(user=request.user).order_by('-created_at').select_related('news', 'user')
+
+    context = {
+        'comments': comments,
+        'title': 'Мои Комментарии',
+    }
+
+    return render(request, 'my_comments_list.html', context)
 
 def comment_list(request, news_id):
     news_item = get_object_or_404(News, id=news_id)

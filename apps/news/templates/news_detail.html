@@ -29,7 +29,11 @@
             font-weight: 500;
             transition: all 0.2s ease;
         }
-
+        .comment-date {
+                    color: #9ca3af;
+            font-size: 12px;
+           padding-bottom: 4px;
+        }
         a:hover {
             color: #1e40af;
         }
@@ -68,6 +72,97 @@
             border-radius: 12px;
             border: 1px solid #e2e8f0;
         }
+
+        /* === COMMENTS STYLE IMPROVED === */
+#comments-section h2 {
+    margin-bottom: 20px;
+    font-size: 1.5rem;
+    color: #1e3a8a;
+    border-bottom: 2px solid #e2e8f0;
+    padding-bottom: 6px;
+}
+
+.comment {
+    margin-bottom: 20px;
+    padding: 16px;
+    background: #ffffff;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.comment:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.comment b {
+    color: #1e40af;
+}
+
+.comment-date {
+    color: #9ca3af;
+    font-size: 12px;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.reply {
+    margin-left: 30px;
+    margin-top: 10px;
+    padding-left: 10px;
+    border-left: 2px solid #d1d5db;
+}
+
+textarea {
+    width: 95%;
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid #d1d5db;
+    resize: vertical;
+    font-size: 0.95rem;
+    margin-top: 8px;
+}
+
+button, .btn-small {
+    font-family: inherit;
+    transition: all 0.2s ease;
+
+}
+
+.btn-small {
+    padding: 4px 12px;
+    font-size: 0.8rem;
+    background: #4b5563;
+    color: white;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    margin-top: 4px;
+}
+
+.btn-small:hover {
+    background: #374151;
+}
+.buttonSend {
+    background: #08388e;
+    color: white;
+    border: none;
+    height: 36px;
+    padding: 4px 12px;
+    font-size: 14px;
+    border-radius: 4px;
+}
+#comments-section textarea {
+    margin-bottom: 10px;
+}
+
+/* Optional: визуальная группировка новых комментариев */
+#comments-section > textarea {
+    border: 1px solid #2563eb;
+}
+
     </style>
 </head>
 <body>
@@ -104,6 +199,153 @@
             <h2>Содержание</h2>
             <p>{{ news.content|linebreaksbr }}</p>
         </article>
+        <div id="comments-section">
+            <h2>Комментарии</h2>
+
+            <div id="comments">
+                {% if comments %}
+                    {% for comment in comments %}
+                        {% if not comment.parent %}
+                            <div class="comment" id="comment-{{ comment.id }}">
+                                <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span><br>
+                                <b>{{ comment.user.username }}</b>: {{ comment.text }}<br>
+                                <button class="btn-small" onclick="showReplyForm({{ comment.id }})">Ответить</button>
+
+                                <div id="reply-form-{{ comment.id }}" style="margin-top:10px; display:none;">
+                                    <textarea id="reply-text-{{ comment.id }}" rows="2"></textarea><br><br>
+                                    <button class="btn-small" onclick="postReply({{ comment.id }}, {{ news.id }})">Ответить</button>
+                                </div>
+
+                                <!-- Вложенные ответы -->
+                                {% for reply in comment.replies.all %}
+                                    <div class="reply">
+                                        <span class="comment-date">{{ reply.created_at|date:"d.m.Y H:i" }}</span><br>
+                                        <b>{{ reply.user.username }}</b>: {{ reply.text }}<br>
+                                        <button class="btn-small" onclick="showReplyForm({{ reply.id }})">Ответить</button>
+
+                                        <div id="reply-form-{{ reply.id }}" style="margin-top:10px; display:none;">
+                                            <textarea id="reply-text-{{ reply.id }}" rows="2"></textarea><br><br>
+                                            <button class="btn-small" onclick="postReply({{ reply.id }}, {{ news.id }})">Ответить</button>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                    {% endfor %}
+                {% else %}
+                    <p>Комментариев пока нет.</p>
+                {% endif %}
+            </div>
+
+            <h3>Добавить комментарий</h3>
+            <textarea id="new-comment" rows="3"></textarea><br><br>
+            <button type="button" class="buttonSend" onclick="postComment({{ news.pk }})">Отправить</button>
+        </div>
+
     </div>
+
+    <!-- === COMMENTS JS === -->
+    <script>
+        const NEWS_ID = {{ news.id }};
+        const COMMENTS_API = `/comments/api/comments/?news_id=${NEWS_ID}&parent_only=true`;
+
+        async function loadComments() {
+            const res = await fetch(COMMENTS_API);
+            let list = await res.json();
+
+            if (list.results) {
+                list = list.results;
+            }
+
+            if (!Array.isArray(list)) {
+                list = [];
+            }
+
+        }
+
+        function showReplyForm(id) {
+            document.getElementById(`reply-form-${id}`).style.display = "block";
+        }
+
+        function postComment(newsId) {
+            const text = document.getElementById("new-comment").value;
+            if (!text.trim()) return alert("Введите текст");
+
+            fetch('/comments/api/comments/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    text: text,
+                    news: newsId,
+                    news_id: newsId,
+                })
+            })
+            .then(response => response.json().then(data => ({status: response.status, data})))
+            .then(obj => {
+                console.log(obj);
+                if(obj.status === 201) {
+                    loadComments();  // обновляем список
+                    window.location.reload();
+                    document.getElementById("new-comment").value = "";  // чистим поле
+                } else {
+                    alert("Ошибка: " + JSON.stringify(obj.data));
+                }
+            });
+        }
+
+
+
+        async function postReply(parentId, newsId) {
+        const text = document.getElementById(`reply-text-${parentId}`).value;
+        if (!text.trim()) return alert("Введите текст");
+
+    try {
+        const response = await fetch(`/comments/api/comments/${parentId}/reply/`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": getCookie("csrftoken"),
+            },
+            body: JSON.stringify({
+                text: text,
+                news_id: newsId
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(JSON.stringify(errorData));
+        }
+
+        window.location.reload();
+        await loadComments();
+        document.getElementById(`reply-form-${parentId}`).style.display = "none";
+        document.getElementById(`reply-text-${parentId}`).value = "";
+
+    } catch (error) {
+        console.error('Ошибка при отправке ответа:', error);
+    }
+}
+
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie) {
+                const cookies = document.cookie.split(';');
+                for (let c of cookies) {
+                    c = c.trim();
+                    if (c.startsWith(name + '=')) {
+                        cookieValue = c.substring(name.length + 1);
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+        loadComments();
+    </script>
 </body>
 </html>

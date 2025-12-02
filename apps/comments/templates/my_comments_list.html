@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        body {
+            font-family: 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            color: #111827;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.05);
+        }
+
+        a {
+            color: #2563eb;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        a:hover {
+            color: #1e40af;
+        }
+
+        h1 {
+            font-size: 2rem;
+            color: #1e3a8a;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+
+        /* === COMMENTS STYLE === */
+        #comments-list {
+            padding: 0;
+            margin: 0;
+        }
+
+        .comment-item {
+            margin-bottom: 20px;
+            padding: 12px 16px;
+            background: #ffffff;
+            border-radius: 10px;
+            border: 1px solid #e5e7eb;
+            list-style: none; /* Убираем маркер списка */
+        }
+
+        .comment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+            font-size: 0.95rem;
+            border-bottom: 1px dashed #e2e8f0;
+            padding-bottom: 5px;
+        }
+
+        .comment-meta {
+            font-size: 0.8rem;
+            color: #6b7280;
+            display: flex;
+            gap: 10px;
+        }
+
+        .comment-date {
+            color: #9ca3af;
+        }
+
+        .comment-text {
+            color: #374151;
+            line-height: 1.5;
+            margin-top: 10px;
+            margin-bottom: 0;
+        }
+
+        .news-link {
+            font-size: 0.9rem;
+            font-style: italic;
+            margin-top: 10px;
+            display: block;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ title }}</h1>
+
+        {% if comments %}
+            <ul id="comments-list">
+            {% for comment in comments %}
+                <li class="comment-item">
+
+                    <div class="comment-header">
+                        <span class="comment-author">
+                            {% if comment.parent %}
+                                Ответ на комментарий
+                            {% else %}
+                                Основной комментарий
+                            {% endif %}
+                        </span>
+                        <div class="comment-meta">
+                            {% if comment.parent %}
+                                <a href="{% url 'comments:comment_detail' comment_id=comment.parent.id %}">К оригиналу</a>
+                            {% endif %}
+                            <span class="comment-date">{{ comment.created_at|date:"d.m.Y H:i" }}</span>
+                            <br>
+                        </div>
+                    </div>
+
+                    <p class="comment-text">{{ comment.text|linebreaksbr }}</p>
+
+                    <a href="/news/{{ comment.news.id }}/" class="news-link">
+                        К новости: {{ comment.news.title }}
+                    </a>
+
+                </li>
+            {% endfor %}
+            </ul>
+        {% else %}
+            <p style="text-align: center; color: #6b7280;">Вы еще не оставили ни одного комментария.</p>
+        {% endif %}
+    </div>
+</body>
+</html>
