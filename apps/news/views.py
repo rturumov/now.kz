@@ -6,8 +6,6 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import News, Category
 from .serializers import NewsSerializer, CategorySerializer
-from .permissions import IsAuthorOrReadOnly  # Импортируем кастомный permission
-from apps.comments.models import Comment
 
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = Category.objects.annotate(
@@ -38,7 +36,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class NewsViewSet(viewsets.ModelViewSet):
     queryset = News.objects.filter(is_published=True).order_by('-published_at')
     serializer_class = NewsSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
+    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['title', 'content']
     ordering_fields = ['published_at', 'title']
@@ -127,7 +125,6 @@ def news_list(request):
 
 def news_detail(request, news_id):
     news_item = get_object_or_404(News, id=news_id, is_published=True)
-    comments = Comment.objects.filter(news=news_item).order_by('created_at')  # все комментарии к новости
 
     if request.headers.get('Accept') == 'application/json':
         serializer = NewsSerializer(news_item)
@@ -135,9 +132,7 @@ def news_detail(request, news_id):
 
     context = {
         'news': news_item,
-        'title': news_item.title,
-        'comments': comments,
-
+        'title': news_item.title
     }
     return render(request, 'news_detail.html', context)
 
