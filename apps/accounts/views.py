@@ -1,165 +1,192 @@
 from django.shortcuts import get_object_or_404, render
 from django.contrib.auth import get_user_model
-from rest_framework import viewsets, permissions, status, filters
+from django.http import JsonResponse
+from rest_framework.viewsets import ViewSet
+from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.http import JsonResponse
-from .models import User, Author
-from .serializers import UserSerializer, AuthorSerializer
+from rest_framework import status
+from .models import Author
+from .serializers import (
+    UserSerializer,
+    UserRegisterSerializer,
+    AuthorSerializer,
+)
+from apps.news.models import News
+from apps.news.serializers import NewsSerializer
 
 User = get_user_model()
 
-class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.filter(is_active=True).order_by('-date_joined')
-    serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['username', 'email']
-    
+class UserViewSet(ViewSet):
+    def _base_qs(self):
+        return (
+            User.objects
+            .filter(is_active=True)
+            .select_related("author_profile")
+        )
+
     def get_permissions(self):
-        if self.action in ['create', 'register']:
+        if self.action in ["register"]:
             return [AllowAny()]
-        elif self.action in ['retrieve', 'update', 'partial_update', 'me']:
-            return [permissions.IsAuthenticated()]
-        elif self.action in ['list', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return super().get_permissions()
+        if self.action in ["list", "destroy"]:
+            return [IsAdminUser()]
+        return [IsAuthenticated()]
 
-    def get_queryset(self):
-        user = self.request.user
-        if user.is_staff:
-            return User.objects.all().select_related('author_profile')
-        return User.objects.filter(id=user.id).select_related('author_profile') #оптимизация join
+    def list(self, request):
+        users = self._base_qs().order_by("-date_joined")
+        return Response(UserSerializer(users, many=True).data)
 
-    def get_serializer_class(self):
-        if self.action == 'create':
-            from .serializers import UserRegisterSerializer
-            return UserRegisterSerializer
-        return super().get_serializer_class()
+    def retrieve(self, request, pk=None):
+        user = get_object_or_404(self._base_qs(), pk=pk)
+        return Response(UserSerializer(user).data)
 
-    @action(detail=False, methods=['post'], permission_classes=[AllowAny])
+    @action(detail=False, methods=["post"], permission_classes=[AllowAny])
     def register(self, request):
-        serializer = self.get_serializer(data=request.data)
+        serializer = UserRegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
-        
-        return Response({
-            'user': UserSerializer(user).data,
-            'message': 'Пользователь успешно зарегистрирован'
-        }, status=status.HTTP_201_CREATED)
+        return Response(
+            UserSerializer(user).data,
+            status=status.HTTP_201_CREATED,
+        )
 
-    @action(detail=False, methods=['get', 'put', 'patch'])
+    @action(detail=False, methods=["get", "put", "patch"])
     def me(self, request):
         user = request.user
-        if request.method == 'GET':
-            serializer = self.get_serializer(user)
-            return Response(serializer.data)
 
-        serializer = self.get_serializer(user, data=request.data, partial=True)
+        if request.method == "GET":
+            return Response(UserSerializer(user).data)
+
+        serializer = UserSerializer(
+            user,
+            data=request.data,
+            partial=True,
+        )
         serializer.is_valid(raise_exception=True)
         serializer.save()
         return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def set_password(self, request, pk=None):
-        user = self.get_object()
-        
+        user = get_object_or_404(User, pk=pk)
+
         if user != request.user and not request.user.is_staff:
             return Response(
-                {'detail': 'У вас нет прав для изменения этого пароля.'},
-                status=status.HTTP_403_FORBIDDEN
+                {"detail": "Permission denied."},
+                status=status.HTTP_403_FORBIDDEN,
             )
-        
-        password = request.data.get('password')
+
+        password = request.data.get("password")
         if not password:
             return Response(
-                {'password': ['Это поле обязательно.']},
-                status=status.HTTP_400_BAD_REQUEST
+                {"password": ["This field is required."]},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
+
         user.set_password(password)
-        user.save()
-        return Response({'message': 'Пароль успешно изменен'})
+        user.save(update_fields=["password"])
+        return Response({"message": "Password updated"})
 
+class AuthorViewSet(ViewSet):
+    permission_classes = [AllowAny]
 
-class AuthorViewSet(viewsets.ModelViewSet):
-    queryset = Author.objects.all()
-    serializer_class = AuthorSerializer
-    permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-    filter_backends = [filters.SearchFilter]
-    search_fields = ['user__username', 'user__email', 'description']
-
-    @action(detail=True, methods=['get'])
-    def news(self, request, pk=None):
-        author = self.get_object()
-        from apps.news.models import News 
-        news_items = News.objects.filter(author=author, is_published=True)\
-                         .select_related('author__user')\
-                         .prefetch_related('comments') #оптимизация join
-        
-        from apps.news.serializers import NewsSerializer
-        page = self.paginate_queryset(news_items)
-        if page is not None:
-            serializer = NewsSerializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = NewsSerializer(news_items, many=True)
-        return Response(serializer.data)
-
-    @action(detail=False, methods=['get'])
-    def become_author(self, request):
-        user = request.user
-        
-        if hasattr(user, 'author_profile'):
-            return Response(
-                {'detail': 'Вы уже являетесь автором.'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        
-        author = Author.objects.create(
-            user=user,
-            description=request.data.get('description', '')
+    def _base_qs(self):
+        return (
+            Author.objects
+            .filter(deleted_at__isnull=True)
+            .select_related("user")
         )
-        
-        serializer = self.get_serializer(author)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def list(self, request):
+        authors = self._base_qs().order_by("user__username")
+        return Response(AuthorSerializer(authors, many=True).data)
+
+    def retrieve(self, request, pk=None):
+        author = get_object_or_404(self._base_qs(), pk=pk)
+        return Response(AuthorSerializer(author).data)
+
+    @action(detail=True, methods=["get"])
+    def news(self, request, pk=None):
+        author = get_object_or_404(self._base_qs(), pk=pk)
+
+        qs = (
+            News.objects
+            .filter(
+                author=author,
+                is_published=True,
+                deleted_at__isnull=True,
+            )
+            .select_related("category")
+            .order_by("-created_at")
+        )
+
+        return Response(NewsSerializer(qs, many=True).data)
+
+    @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
+    def become_author(self, request):
+        if hasattr(request.user, "author_profile"):
+            return Response(
+                {"detail": "Already an author."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        author = Author.objects.create(
+            user=request.user,
+            description=request.data.get("description", ""),
+        )
+
+        return Response(
+            AuthorSerializer(author).data,
+            status=status.HTTP_201_CREATED,
+        )
 
 def author_list(request):
-    all_authors = Author.objects.filter(user__is_active=True)\
-                            .select_related('user')\
-                            .order_by('user__username') #оптимизация join
+    authors = (
+        Author.objects
+        .filter(user__is_active=True, deleted_at__isnull=True)
+        .select_related("user")
+        .order_by("user__username")
+    )
 
-    if request.headers.get('Accept') == 'application/json':
-        serializer = AuthorSerializer(all_authors, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse(
+            AuthorSerializer(authors, many=True).data,
+            safe=False,
+        )
 
-    context = {
-        'authors': all_authors,
-        'title': 'Список Авторов'
-    }
-    return render(request, 'author_list.html', context)
+    return render(
+        request,
+        "author_list.html",
+        {"authors": authors, "title": "Список Авторов"},
+    )
 
 
 def author_detail(request, username):
-    user_profile = get_object_or_404(User.objects.select_related('author_profile'), username=username, is_active=True) #оптимизация join
+    user_profile = get_object_or_404(
+        User.objects.select_related("author_profile"),
+        username=username,
+        is_active=True,
+    )
 
-    try:
-        author_profile = user_profile.author_profile
-    except Author.DoesNotExist:
-        author_profile = None
+    author_profile = getattr(user_profile, "author_profile", None)
 
-    if request.headers.get('Accept') == 'application/json':
-        user_data = UserSerializer(user_profile).data
-        author_data = AuthorSerializer(author_profile).data if author_profile else None
-        return JsonResponse({
-            'user': user_data,
-            'author': author_data
-        })
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse(
+            {
+                "user": UserSerializer(user_profile).data,
+                "author": (
+                    AuthorSerializer(author_profile).data
+                    if author_profile else None
+                ),
+            }
+        )
 
-    context = {
-        'user_data': user_profile,
-        'author_data': author_profile,
-        'title': f'Профиль: {user_profile.username}'
-    }
-    return render(request, 'author_detail.html', context)
+    return render(
+        request,
+        "author_detail.html",
+        {
+            "user_data": user_profile,
+            "author_data": author_profile,
+            "title": f"Профиль: {user_profile.username}",
+        },
+    )

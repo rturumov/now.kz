@@ -1,169 +1,236 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
-from rest_framework import viewsets, permissions, status, filters
+from django.http import JsonResponse
+from rest_framework.viewsets import ViewSet
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.http import JsonResponse
+from rest_framework import status
 from .models import Comment
-from apps.news.models import News
-from .permissions import IsCommentOwnerOrReadOnly
 from .serializers import CommentSerializer
+from .permissions import IsCommentOwnerOrReadOnly
+from apps.news.models import News
 
-class CommentViewSet(viewsets.ModelViewSet):
+
+class CommentViewSet(ViewSet):
+    permission_classes = [IsCommentOwnerOrReadOnly]
+
     def get_permissions(self):
-        if self.action in ['reply', 'create']:
-            return [permissions.IsAuthenticated()]
-        return [permissions.IsAuthenticatedOrReadOnly(), IsCommentOwnerOrReadOnly()]
-    serializer_class = CommentSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
-    search_fields = ['text', 'user__username']
-    ordering_fields = ['created_at', 'updated_at']
-    ordering = ['created_at']
+        if self.action in ["list", "retrieve", "news_comments"]:
+            return [AllowAny()]
+        return [IsAuthenticated()]
 
-    def get_queryset(self):
-        queryset = Comment.objects.all()
+    def _base_qs(self):
+        return (
+            Comment.objects
+            .filter(deleted_at__isnull=True)
+            .select_related("user", "news", "parent")
+            .prefetch_related("replies__user")
+        )
 
-        news_id = self.request.query_params.get('news_id')
+    def list(self, request):
+        qs = self._base_qs()
+
+        news_id = request.query_params.get("news_id")
+        user_id = request.query_params.get("user_id")
+        parent_only = request.query_params.get("parent_only", "true").lower() == "true"
+
         if news_id:
-            queryset = queryset.filter(news_id=news_id)
+            qs = qs.filter(news_id=news_id)
 
-        if self.action in ['list', 'news_comments', 'my_comments']:
-            parent_only = self.request.query_params.get('parent_only', 'true').lower() == 'true'
-            if parent_only:
-                queryset = queryset.filter(parent__isnull=True)
-
-        user_id = self.request.query_params.get('user_id')
         if user_id:
-            queryset = queryset.filter(user_id=user_id)
+            qs = qs.filter(user_id=user_id)
 
-        return queryset.select_related('user', 'news', 'parent').prefetch_related('replies__user') #оптимизация join
+        if parent_only:
+            qs = qs.filter(parent__isnull=True)
 
-    def perform_create(self, serializer):
-        serializer.save(user=self.request.user)
+        qs = qs.order_by("created_at")
+        return Response(CommentSerializer(qs, many=True).data)
 
-    @action(detail=True, methods=['get'])
-    def replies(self, request, pk=None):
-        comment = self.get_object()
-        replies = comment.replies.filter(is_deleted=False).select_related('user', 'news', 'parent') #оптимизация join
+    def retrieve(self, request, pk=None):
+        comment = get_object_or_404(self._base_qs(), pk=pk)
+        return Response(CommentSerializer(comment).data)
 
-        page = self.paginate_queryset(replies)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(replies, many=True)
-        return Response(serializer.data)
+    def create(self, request):
+        serializer = CommentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
-    @action(detail=True, methods=['post'])
+        news = get_object_or_404(
+            News,
+            pk=serializer.validated_data["news"].id,
+            deleted_at__isnull=True,
+        )
+
+        comment = serializer.save(user=request.user, news=news)
+        return Response(
+            CommentSerializer(comment).data,
+            status=status.HTTP_201_CREATED,
+        )
+
+    def destroy(self, request, pk=None):
+        comment = get_object_or_404(Comment, pk=pk, deleted_at__isnull=True)
+
+        if comment.user != request.user:
+            return Response(
+                {"detail": "Permission denied"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        comment.delete()
+        comment.replies.update(deleted_at=comment.deleted_at)
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=["post"])
     def reply(self, request, pk=None):
-        comment = self.get_object()
+        parent = get_object_or_404(
+            Comment,
+            pk=pk,
+            deleted_at__isnull=True,
+        )
 
-        serializer = self.get_serializer(data=request.data)
+        serializer = CommentSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         reply = serializer.save(
             user=request.user,
-            news=comment.news,
-            parent=comment
+            news=parent.news,
+            parent=parent,
         )
 
         return Response(
-            self.get_serializer(reply).data,
-            status=status.HTTP_201_CREATED
+            CommentSerializer(reply).data,
+            status=status.HTTP_201_CREATED,
         )
 
-    def destroy(self, request, *args, **kwargs):
-        comment = self.get_object()
-        comment.is_deleted = True
-        comment.save()
-        comment.replies.update(is_deleted=True)
-        return Response(status=status.HTTP_204_NO_CONTENT)
+    @action(detail=True, methods=["get"])
+    def replies(self, request, pk=None):
+        parent = get_object_or_404(
+            Comment,
+            pk=pk,
+            deleted_at__isnull=True,
+        )
 
-    @action(detail=False, methods=['get'])
+        replies = (
+            self._base_qs()
+            .filter(parent=parent)
+            .order_by("created_at")
+        )
+
+        return Response(CommentSerializer(replies, many=True).data)
+
+    @action(detail=False, methods=["get"])
     def news_comments(self, request):
-        news_id = request.query_params.get('news_id')
+        news_id = request.query_params.get("news_id")
         if not news_id:
             return Response(
-                {'detail': 'Не указан news_id параметр.'},
-                status=status.HTTP_400_BAD_REQUEST
+                {"detail": "news_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
-        try:
-            news = News.objects.get(id=news_id)
-        except News.DoesNotExist:
-            return Response(
-                {'detail': 'Новость не найдена.'},
-                status=status.HTTP_404_NOT_FOUND
-            )
-        
-        comments = Comment.objects.filter(news=news, is_deleted=False, parent__isnull=True)\
-                          .select_related('user', 'news')\
-                          .prefetch_related('replies__user') #оптимизация join
-        
-        page = self.paginate_queryset(comments)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(comments, many=True)
-        return Response(serializer.data)
 
-    @action(detail=False, methods=['get'])
+        news = get_object_or_404(
+            News,
+            pk=news_id,
+            deleted_at__isnull=True,
+        )
+
+        comments = (
+            self._base_qs()
+            .filter(news=news, parent__isnull=True)
+            .order_by("created_at")
+        )
+
+        return Response(CommentSerializer(comments, many=True).data)
+
+    @action(detail=False, methods=["get"])
     def my_comments(self, request):
-        comments = Comment.objects.filter(user=request.user, is_deleted=False)\
-                          .select_related('news', 'user')\
-                          .prefetch_related('replies__user') #оптимизация join
-        
-        page = self.paginate_queryset(comments)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-            
-        serializer = self.get_serializer(comments, many=True)
-        return Response(serializer.data)
-
+        comments = (
+            self._base_qs()
+            .filter(user=request.user)
+            .order_by("-created_at")
+        )
+        return Response(CommentSerializer(comments, many=True).data)
 
 @login_required
 def my_comments_list(request):
+    comments = (
+        Comment.objects
+        .filter(user=request.user, deleted_at__isnull=True)
+        .select_related("news", "user")
+        .order_by("-created_at")
+    )
 
-    comments = Comment.objects.filter(user=request.user, is_deleted=False).order_by('-created_at').select_related('news', 'user')
+    return render(
+        request,
+        "my_comments_list.html",
+        {
+            "comments": comments,
+            "title": "Мои комментарии",
+        },
+    )
 
-    context = {
-        'comments': comments,
-        'title': 'Мои Комментарии',
-    }
-
-    return render(request, 'my_comments_list.html', context)
 
 def comment_list(request, news_id):
-    news_item = get_object_or_404(News, id=news_id)
-    comments = Comment.objects.filter(news=news_item, is_deleted=False, parent__isnull=True)\
-                          .select_related('user', 'news')\
-                          .prefetch_related('replies__user') #оптимизация join
+    news_item = get_object_or_404(
+        News,
+        pk=news_id,
+        deleted_at__isnull=True,
+    )
 
-    if request.headers.get('Accept') == 'application/json':
-        serializer = CommentSerializer(comments, many=True)
-        return JsonResponse(serializer.data, safe=False)
+    comments = (
+        Comment.objects
+        .filter(
+            news=news_item,
+            parent__isnull=True,
+            deleted_at__isnull=True,
+        )
+        .select_related("user", "news")
+        .prefetch_related("replies__user")
+        .order_by("created_at")
+    )
 
-    context = {
-        'news': news_item,
-        'comments': comments,
-        'title': f'Комментарии к новости: {news_item.title}'
-    }
-    return render(request, 'comment_list.html', context)
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse(
+            CommentSerializer(comments, many=True).data,
+            safe=False,
+        )
+
+    return render(
+        request,
+        "comment_list.html",
+        {
+            "news": news_item,
+            "comments": comments,
+            "title": f"Комментарии к новости: {news_item.title}",
+        },
+    )
 
 
 def comment_detail(request, comment_id):
-    comment = get_object_or_404(Comment, id=comment_id)
+    comment = get_object_or_404(
+        Comment,
+        pk=comment_id,
+        deleted_at__isnull=True,
+    )
 
-    if request.headers.get('Accept') == 'application/json':
-        serializer = CommentSerializer(comment)
-        return JsonResponse(serializer.data, safe=False)
+    replies = (
+        comment.replies
+        .filter(deleted_at__isnull=True)
+        .select_related("user")
+    )
 
-    context = {
-        'comment': comment,
-        'replies': comment.replies.filter(is_deleted=False),
-        'title': f'Комментарий пользователя: {comment.user.username}'
-    }
-    return render(request, 'comment_detail.html', context)
+    if request.headers.get("Accept") == "application/json":
+        return JsonResponse(
+            CommentSerializer(comment).data,
+            safe=False,
+        )
+
+    return render(
+        request,
+        "comment_detail.html",
+        {
+            "comment": comment,
+            "replies": replies,
+            "title": f"Комментарий пользователя: {comment.user.username}",
+        },
+    )
