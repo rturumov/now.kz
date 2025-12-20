@@ -1,80 +1,104 @@
-from rest_framework import serializers
+from rest_framework.serializers import (
+    ModelSerializer,
+    SerializerMethodField,
+    CharField,
+)
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-from .models import User, Author
+
+from .models import Author
 
 User = get_user_model()
 
+class UserBaseSerializer(ModelSerializer):
+    class Meta:
+        model = User
+        fields = "__all__"
 
-class UserRegisterSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(
-        write_only=True,
-        required=True,
-        validators=[validate_password]
-    )
-    password2 = serializers.CharField(write_only=True, required=True)
+
+class UserListSerializer(UserBaseSerializer):
+    is_author = SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ['username', 'email', 'password', 'password2', 'bio', 'avatar']
-        extra_kwargs = {
-            'username': {'required': True},
-            'email': {'required': True},
-        }
+        fields = (
+            "id",
+            "email",
+            "first_name",
+            "last_name",
+            "is_author",
+        )
+
+    def get_is_author(self, obj: User) -> bool:
+        return hasattr(obj, "author_profile")
+
+
+class UserDetailSerializer(UserBaseSerializer):
+    is_author = SerializerMethodField()
+
+    class Meta:
+        model = User
+        fields = "__all__"
+        read_only_fields = (
+            "id",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+        )
+
+    def get_is_author(self, obj: User) -> bool:
+        return hasattr(obj, "author_profile")
+
+
+class UserRegisterSerializer(ModelSerializer):
+    password = CharField(write_only=True, validators=[validate_password])
+    password2 = CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = (
+            "email",
+            "password",
+            "password2",
+        )
 
     def validate(self, attrs):
-        if attrs['password'] != attrs['password2']:
-            raise serializers.ValidationError({"password": "Пароли не совпадают."})
+        if attrs["password"] != attrs["password2"]:
+            raise ValueError("Passwords do not match")
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('password2')
-        user = User.objects.create_user(**validated_data)
-        return user
+        validated_data.pop("password2")
+        return User.objects.create_user(**validated_data)
 
-
-class UserSerializer(serializers.ModelSerializer):
-    is_author = serializers.SerializerMethodField()
-
+class AuthorBaseSerializer(ModelSerializer):
     class Meta:
-        model = User
-        fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'bio', 'avatar', 'date_joined', 'last_login',
-            'is_active', 'is_staff', 'is_superuser', 'is_author'
-        ]
-        read_only_fields = [
-            'id', 'date_joined', 'last_login',
-            'is_active', 'is_staff', 'is_superuser'
-        ]
-
-    def get_is_author(self, obj):
-        return hasattr(obj, 'author_profile')
+        model = Author
+        fields = "__all__"
 
 
-class AuthorSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-    user_id = serializers.PrimaryKeyRelatedField(
-        queryset=User.objects.all(),
-        source='user',
-        write_only=True,
-        required=False
-    )
-    news_count = serializers.SerializerMethodField()
+class AuthorListSerializer(AuthorBaseSerializer):
+    user_email = SerializerMethodField()
+    news_count = SerializerMethodField()
 
     class Meta:
         model = Author
-        fields = ['id', 'user', 'user_id', 'description', 'news_count', 'created_at', 'updated_at']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+        fields = (
+            "id",
+            "user_email",
+            "description",
+            "news_count",
+        )
 
-    def get_news_count(self, obj):
+    def get_user_email(self, obj: Author) -> str:
+        return obj.user.email
+
+    def get_news_count(self, obj: Author) -> int:
         from apps.news.models import News
         return News.objects.filter(author=obj, is_published=True).count()
 
 
-class ChangePasswordSerializer(serializers.Serializer):
-    old_password = serializers.CharField(required=True)
-    new_password = serializers.CharField(
-        required=True,
-        validators=[validate_password]
-    )
+class AuthorDetailSerializer(AuthorBaseSerializer):
+    class Meta:
+        model = Author
+        fields = "__all__"

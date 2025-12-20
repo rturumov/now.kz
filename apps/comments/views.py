@@ -1,14 +1,22 @@
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import get_object_or_404, render
 from django.http import JsonResponse
+
 from rest_framework.viewsets import ViewSet
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+
 from .models import Comment
-from .serializers import CommentSerializer
 from .permissions import IsCommentOwnerOrReadOnly
+from .serializers import (
+    CommentListSerializer,
+    CommentDetailSerializer,
+    CommentCreateSerializer,
+    CommentQueryParamsSerializer,
+)
+
 from apps.news.models import News
 
 
@@ -20,6 +28,15 @@ class CommentViewSet(ViewSet):
             return [AllowAny()]
         return [IsAuthenticated()]
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return CommentListSerializer
+        if self.action == "retrieve":
+            return CommentDetailSerializer
+        if self.action in ["create", "reply"]:
+            return CommentCreateSerializer
+        return CommentDetailSerializer
+
     def _base_qs(self):
         return (
             Comment.objects
@@ -29,30 +46,32 @@ class CommentViewSet(ViewSet):
         )
 
     def list(self, request):
+        params = CommentQueryParamsSerializer(data=request.query_params)
+        params.is_valid(raise_exception=True)
+        data = params.validated_data
+
         qs = self._base_qs()
 
-        news_id = request.query_params.get("news_id")
-        user_id = request.query_params.get("user_id")
-        parent_only = request.query_params.get("parent_only", "true").lower() == "true"
+        if "news_id" in data:
+            qs = qs.filter(news_id=data["news_id"])
 
-        if news_id:
-            qs = qs.filter(news_id=news_id)
+        if "user_id" in data:
+            qs = qs.filter(user_id=data["user_id"])
 
-        if user_id:
-            qs = qs.filter(user_id=user_id)
-
-        if parent_only:
+        if data.get("parent_only", True):
             qs = qs.filter(parent__isnull=True)
 
         qs = qs.order_by("created_at")
-        return Response(CommentSerializer(qs, many=True).data)
+        serializer = self.get_serializer_class()
+        return Response(serializer(qs, many=True).data)
 
     def retrieve(self, request, pk=None):
         comment = get_object_or_404(self._base_qs(), pk=pk)
-        return Response(CommentSerializer(comment).data)
+        serializer = self.get_serializer_class()
+        return Response(serializer(comment).data)
 
     def create(self, request):
-        serializer = CommentSerializer(data=request.data)
+        serializer = CommentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         news = get_object_or_404(
@@ -61,9 +80,13 @@ class CommentViewSet(ViewSet):
             deleted_at__isnull=True,
         )
 
-        comment = serializer.save(user=request.user, news=news)
+        comment = serializer.save(
+            user=request.user,
+            news=news,
+        )
+
         return Response(
-            CommentSerializer(comment).data,
+            CommentDetailSerializer(comment).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -83,13 +106,9 @@ class CommentViewSet(ViewSet):
 
     @action(detail=True, methods=["post"])
     def reply(self, request, pk=None):
-        parent = get_object_or_404(
-            Comment,
-            pk=pk,
-            deleted_at__isnull=True,
-        )
+        parent = get_object_or_404(Comment, pk=pk, deleted_at__isnull=True)
 
-        serializer = CommentSerializer(data=request.data)
+        serializer = CommentCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         reply = serializer.save(
@@ -99,17 +118,13 @@ class CommentViewSet(ViewSet):
         )
 
         return Response(
-            CommentSerializer(reply).data,
+            CommentDetailSerializer(reply).data,
             status=status.HTTP_201_CREATED,
         )
 
     @action(detail=True, methods=["get"])
     def replies(self, request, pk=None):
-        parent = get_object_or_404(
-            Comment,
-            pk=pk,
-            deleted_at__isnull=True,
-        )
+        parent = get_object_or_404(Comment, pk=pk, deleted_at__isnull=True)
 
         replies = (
             self._base_qs()
@@ -117,7 +132,7 @@ class CommentViewSet(ViewSet):
             .order_by("created_at")
         )
 
-        return Response(CommentSerializer(replies, many=True).data)
+        return Response(CommentListSerializer(replies, many=True).data)
 
     @action(detail=False, methods=["get"])
     def news_comments(self, request):
@@ -140,7 +155,7 @@ class CommentViewSet(ViewSet):
             .order_by("created_at")
         )
 
-        return Response(CommentSerializer(comments, many=True).data)
+        return Response(CommentListSerializer(comments, many=True).data)
 
     @action(detail=False, methods=["get"])
     def my_comments(self, request):
@@ -149,7 +164,7 @@ class CommentViewSet(ViewSet):
             .filter(user=request.user)
             .order_by("-created_at")
         )
-        return Response(CommentSerializer(comments, many=True).data)
+        return Response(CommentListSerializer(comments, many=True).data)
 
 @login_required
 def my_comments_list(request):
@@ -191,7 +206,7 @@ def comment_list(request, news_id):
 
     if request.headers.get("Accept") == "application/json":
         return JsonResponse(
-            CommentSerializer(comments, many=True).data,
+            CommentListSerializer(comments, many=True).data,
             safe=False,
         )
 
@@ -221,7 +236,7 @@ def comment_detail(request, comment_id):
 
     if request.headers.get("Accept") == "application/json":
         return JsonResponse(
-            CommentSerializer(comment).data,
+            CommentDetailSerializer(comment).data,
             safe=False,
         )
 

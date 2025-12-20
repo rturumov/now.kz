@@ -1,48 +1,111 @@
-from rest_framework import serializers
+from rest_framework.serializers import (
+    ModelSerializer,
+    Serializer,
+    SerializerMethodField,
+    IntegerField,
+    BooleanField,
+    DateField,
+)
+
 from .models import News, Category
+from apps.accounts.models import Author
 
+class NewsQueryParamsSerializer(Serializer):
+    category_id = IntegerField(required=False)
+    author_id = IntegerField(required=False)
+    is_published = BooleanField(required=False)
+    date_from = DateField(required=False)
+    date_to = DateField(required=False)
 
-class CategorySerializer(serializers.ModelSerializer):
-    published_news_count = serializers.IntegerField(read_only=True)
+    def validate(self, attrs):
+        if (
+            attrs.get("date_from")
+            and attrs.get("date_to")
+            and attrs["date_from"] > attrs["date_to"]
+        ):
+            raise ValueError("date_from cannot be greater than date_to")
+        return attrs
+
+class CategoryListSerializer(ModelSerializer):
+    published_news_count = IntegerField(read_only=True)
 
     class Meta:
         model = Category
-        fields = ['id', 'name', 'published_news_count']
-        read_only_fields = ['id']
+        fields = (
+            "id",
+            "name",
+            "published_news_count",
+        )
 
+class AuthorForeignSerializer(ModelSerializer):
+    email = SerializerMethodField()
 
-class NewsSerializer(serializers.ModelSerializer):
-    category = CategorySerializer(read_only=True)
-    category_id = serializers.PrimaryKeyRelatedField(
-        queryset=Category.objects.all(),
-        source='category',
-        write_only=True,
-        required=False,
-        allow_null=True
-    )
-    author_name = serializers.CharField(source='author.__str__', read_only=True)
+    class Meta:
+        model = Author
+        fields = (
+            "id",
+            "email",
+        )
+
+    def get_email(self, obj: Author) -> str:
+        return obj.user.email
+
+class NewsListSerializer(ModelSerializer):
+    author = AuthorForeignSerializer(read_only=True)
+    category_name = SerializerMethodField()
 
     class Meta:
         model = News
-        fields = [
-            'id', 'title', 'content', 'image', 
-            'category', 'category_id', 'author', 'author_name',
-            'published_at', 'is_published', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'author', 'published_at', 'created_at', 'updated_at']
+        fields = (
+            "id",
+            "title",
+            "category_name",
+            "author",
+            "is_published",
+            "created_at",
+        )
 
-    def validate(self, data):
-        if 'title' in data and not data['title'].strip():
-            raise serializers.ValidationError({'title': 'Заголовок не может быть пустым.'})
-        
-        if 'content' in data and not data['content'].strip():
-            raise serializers.ValidationError({'content': 'Содержание не может быть пустым.'})
-        
-        return data
+    def get_category_name(self, obj: News):
+        return obj.category.name if obj.category else None
 
-    def create(self, validated_data):
-        request = self.context.get('request')
-        if request and hasattr(request.user, 'author_profile'):
-            validated_data['author'] = request.user.author_profile
-        
-        return super().create(validated_data)
+
+class NewsDetailSerializer(ModelSerializer):
+    author = AuthorForeignSerializer(read_only=True)
+
+    class Meta:
+        model = News
+        fields = (
+            "id",
+            "title",
+            "content",
+            "image",
+            "author",
+            "category",
+            "is_published",
+            "published_at",
+            "created_at",
+            "updated_at",
+        )
+
+
+class NewsCreateSerializer(ModelSerializer):
+    class Meta:
+        model = News
+        fields = (
+            "title",
+            "content",
+            "image",
+            "category",
+        )
+
+
+class NewsUpdateSerializer(ModelSerializer):
+    class Meta:
+        model = News
+        fields = (
+            "title",
+            "content",
+            "image",
+            "category",
+            "is_published",
+        )

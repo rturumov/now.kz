@@ -1,23 +1,29 @@
 from django.shortcuts import get_object_or_404, render
 from django.contrib.auth import get_user_model
 from django.http import JsonResponse
+
 from rest_framework.viewsets import ViewSet
 from rest_framework.permissions import AllowAny, IsAuthenticated, IsAdminUser
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework import status
+
 from .models import Author
 from .serializers import (
-    UserSerializer,
+    UserListSerializer,
+    UserDetailSerializer,
     UserRegisterSerializer,
-    AuthorSerializer,
+    AuthorListSerializer,
+    AuthorDetailSerializer,
 )
+
 from apps.news.models import News
-from apps.news.serializers import NewsSerializer
+from apps.news.serializers import NewsListSerializer
 
 User = get_user_model()
 
 class UserViewSet(ViewSet):
+
     def _base_qs(self):
         return (
             User.objects
@@ -26,19 +32,30 @@ class UserViewSet(ViewSet):
         )
 
     def get_permissions(self):
-        if self.action in ["register"]:
+        if self.action == "register":
             return [AllowAny()]
         if self.action in ["list", "destroy"]:
             return [IsAdminUser()]
         return [IsAuthenticated()]
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return UserListSerializer
+        if self.action in ["retrieve", "me"]:
+            return UserDetailSerializer
+        if self.action == "register":
+            return UserRegisterSerializer
+        return UserDetailSerializer
+
     def list(self, request):
         users = self._base_qs().order_by("-date_joined")
-        return Response(UserSerializer(users, many=True).data)
+        serializer = self.get_serializer_class()
+        return Response(serializer(users, many=True).data)
 
     def retrieve(self, request, pk=None):
         user = get_object_or_404(self._base_qs(), pk=pk)
-        return Response(UserSerializer(user).data)
+        serializer = self.get_serializer_class()
+        return Response(serializer(user).data)
 
     @action(detail=False, methods=["post"], permission_classes=[AllowAny])
     def register(self, request):
@@ -46,7 +63,7 @@ class UserViewSet(ViewSet):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(
-            UserSerializer(user).data,
+            UserDetailSerializer(user).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -55,9 +72,9 @@ class UserViewSet(ViewSet):
         user = request.user
 
         if request.method == "GET":
-            return Response(UserSerializer(user).data)
+            return Response(UserDetailSerializer(user).data)
 
-        serializer = UserSerializer(
+        serializer = UserDetailSerializer(
             user,
             data=request.data,
             partial=True,
@@ -97,13 +114,20 @@ class AuthorViewSet(ViewSet):
             .select_related("user")
         )
 
+    def get_serializer_class(self):
+        if self.action == "list":
+            return AuthorListSerializer
+        return AuthorDetailSerializer
+
     def list(self, request):
-        authors = self._base_qs().order_by("user__username")
-        return Response(AuthorSerializer(authors, many=True).data)
+        authors = self._base_qs().order_by("user__email")
+        serializer = self.get_serializer_class()
+        return Response(serializer(authors, many=True).data)
 
     def retrieve(self, request, pk=None):
         author = get_object_or_404(self._base_qs(), pk=pk)
-        return Response(AuthorSerializer(author).data)
+        serializer = self.get_serializer_class()
+        return Response(serializer(author).data)
 
     @action(detail=True, methods=["get"])
     def news(self, request, pk=None):
@@ -120,7 +144,7 @@ class AuthorViewSet(ViewSet):
             .order_by("-created_at")
         )
 
-        return Response(NewsSerializer(qs, many=True).data)
+        return Response(NewsListSerializer(qs, many=True).data)
 
     @action(detail=False, methods=["post"], permission_classes=[IsAuthenticated])
     def become_author(self, request):
@@ -136,7 +160,7 @@ class AuthorViewSet(ViewSet):
         )
 
         return Response(
-            AuthorSerializer(author).data,
+            AuthorDetailSerializer(author).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -145,12 +169,12 @@ def author_list(request):
         Author.objects
         .filter(user__is_active=True, deleted_at__isnull=True)
         .select_related("user")
-        .order_by("user__username")
+        .order_by("user__email")
     )
 
     if request.headers.get("Accept") == "application/json":
         return JsonResponse(
-            AuthorSerializer(authors, many=True).data,
+            AuthorListSerializer(authors, many=True).data,
             safe=False,
         )
 
@@ -164,7 +188,7 @@ def author_list(request):
 def author_detail(request, username):
     user_profile = get_object_or_404(
         User.objects.select_related("author_profile"),
-        username=username,
+        email=username,
         is_active=True,
     )
 
@@ -173,9 +197,9 @@ def author_detail(request, username):
     if request.headers.get("Accept") == "application/json":
         return JsonResponse(
             {
-                "user": UserSerializer(user_profile).data,
+                "user": UserDetailSerializer(user_profile).data,
                 "author": (
-                    AuthorSerializer(author_profile).data
+                    AuthorDetailSerializer(author_profile).data
                     if author_profile else None
                 ),
             }
@@ -187,6 +211,6 @@ def author_detail(request, username):
         {
             "user_data": user_profile,
             "author_data": author_profile,
-            "title": f"Профиль: {user_profile.username}",
+            "title": f"Профиль: {user_profile.email}",
         },
     )
