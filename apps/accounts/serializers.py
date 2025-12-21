@@ -5,8 +5,8 @@ from rest_framework.serializers import (
 )
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
-
 from .models import Author
+from typing import Any
 
 User = get_user_model()
 
@@ -29,7 +29,7 @@ class UserListSerializer(UserBaseSerializer):
             "is_author",
         )
 
-    def get_is_author(self, obj: User) -> bool:
+    def get_is_author(self, obj: Any) -> bool:
         return hasattr(obj, "author_profile")
 
 
@@ -46,7 +46,7 @@ class UserDetailSerializer(UserBaseSerializer):
             "is_superuser",
         )
 
-    def get_is_author(self, obj: User) -> bool:
+    def get_is_author(self, obj: Any) -> bool:
         return hasattr(obj, "author_profile")
 
 
