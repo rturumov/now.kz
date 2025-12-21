@@ -2,20 +2,24 @@ from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
 from faker import Faker
 
+User = get_user_model()
+fake = Faker()
+
+
 class Command(BaseCommand):
-    help = "Creates 20 fake users."
+    help = "Seed users"
 
     def handle(self, *args, **options):
-        fake = Faker()
-        User = get_user_model()
+        if User.objects.exists():
+            self.stdout.write("⚠️ Users already exist. Skipping.")
+            return
 
-        users = [
-            User(
-                username=fake.unique.user_name(),
+        for _ in range(20):
+            User.objects.create_user(
                 email=fake.unique.email(),
-                bio=fake.text(max_nb_chars=120),
+                password="password123",
+                first_name=fake.first_name(),
+                last_name=fake.last_name(),
             )
-            for _ in range(20)
-        ]
-        User.objects.bulk_create(users)
-        self.stdout.write(self.style.SUCCESS(f"✅ Created {len(users)} users"))
+
+        self.stdout.write(self.style.SUCCESS("✅ Created 20 users"))
