@@ -1,3 +1,4 @@
+from rest_framework.exceptions import ValidationError
 from rest_framework.serializers import (
     ModelSerializer,
     Serializer,
@@ -23,7 +24,9 @@ class NewsQueryParamsSerializer(Serializer):
             and attrs.get("date_to")
             and attrs["date_from"] > attrs["date_to"]
         ):
-            raise ValueError("date_from cannot be greater than date_to")
+            raise ValidationError({
+                "date_from": "date_from cannot be greater than date_to"
+            })
         return attrs
 
 class CategoryListSerializer(ModelSerializer):

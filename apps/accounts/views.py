@@ -188,7 +188,7 @@ def author_list(request):
 def author_detail(request, username):
     user_profile = get_object_or_404(
         User.objects.select_related("author_profile"),
-        email=username,
+        username=username,
         is_active=True,
     )
 
